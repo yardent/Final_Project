@@ -1,0 +1,65 @@
+import os
+import glob
+import nltk
+import string
+import re
+import itertools
+import numpy
+import RNN_Algorithem
+
+
+class Process:
+
+    def __init__(self):
+        # Assign instance variables
+        self.vocabulary_size = 2000
+        self.unknown_token = "UNKNOWN_TOKEN"
+        self.sentence_start_token = "SENTENCE_START"
+        self.sentence_end_token = "SENTENCE_END"
+        self.X_train = None
+        self.y_train = None
+        self.index_to_word = None
+        self.word_to_index = None
+
+    def start_process(self, path):
+        content = ""
+        for fname in glob.glob(path):
+            with open(fname, 'r') as content_file:
+                content = content + content_file.read()
+        content = content.lower()
+        self.split_sentence(content)
+        return [self.X_train, self.y_train, self.vocabulary_size, self.word_to_index, self.index_to_word]
+
+    def split_sentence(self, content):
+        sentences = content.split('.')
+        self.split_words(sentences)
+
+    def split_words(self, sentences):
+        sentences = [re.sub('[%s]' % re.escape(string.punctuation), '', sent) for sent in sentences]
+        sentences = [sent.replace('\n', ' ') for sent in sentences]
+        # sentences = ["%s %s %s" % (self.sentence_start_token, x, self.sentence_end_token) for x in sentences]
+        sentences = self.add_start_end_token(sentences)
+        words = [nltk.word_tokenize(sent) for sent in sentences]
+        self.get_train_set(words)
+
+    def add_start_end_token(self, sentences):
+        sentences = ["%s %s %s" % (self.sentence_start_token, x, self.sentence_end_token) for x in sentences]
+        return sentences
+
+    def get_train_set(self, words):
+        word_freq = nltk.FreqDist(itertools.chain(*words))
+        # -1 because unknown token
+        vocab = word_freq.most_common(self.vocabulary_size - 1)
+        index_to_word = [x[0] for x in vocab]
+        # adding unknown token
+        index_to_word.append(self.unknown_token)
+        # filling
+        word_to_index = dict([(w, i) for i, w in enumerate(index_to_word)])
+        self.index_to_word = index_to_word
+        self.word_to_index = word_to_index
+        for i, sent in enumerate(words):
+            words[i] = [w if w in word_to_index else self.unknown_token for w in sent]
+        # split to two arrays, one with start sentence and one with end sentence.
+        self.X_train = numpy.asarray([[word_to_index[w] for w in sent[:-1]] for sent in words])
+        self.y_train = numpy.asarray([[word_to_index[w] for w in sent[1:]] for sent in words])
+
